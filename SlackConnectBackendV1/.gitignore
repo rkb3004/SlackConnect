@@ -3,6 +3,7 @@ node_modules/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+pnpm-debug.log*
 
 # Runtime data
 pids
@@ -41,24 +42,84 @@ typings/
 # Yarn Integrity file
 .yarn-integrity
 
-# dotenv environment variables file
+# Environment variables - CRITICAL FOR SECURITY
 .env
+.env.*
 .env.local
+.env.development
 .env.development.local
+.env.test
 .env.test.local
+.env.production
 .env.production.local
+.env.staging
+
+# API Keys and Secrets (extra protection)
+config/keys.js
+config/prod.js
+secrets.json
+private.key
+certificate.crt
+*.pem
+*.p12
+*.pfx
 
 # Build output
 dist/
+build/
+out/
+
+# TypeScript
+*.tsbuildinfo
 
 # Database files
 database/
 *.db
 *.db-journal
+*.sqlite
+*.sqlite3
 
 # Logs
-logs
+logs/
 *.log
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# IDE and Editor files
+.vscode/settings.json
+.vscode/launch.json
+.idea/
+*.swp
+*.swo
+*~
+
+# Temporary files
+tmp/
+temp/
+.tmp/
+
+# Docker
+.dockerignore
+docker-compose.override.yml
+
+# Testing
+.nyc_output/
+test-results/
+test-reports/
+
+# Backup files
+*.backup
+*.bak
+*.orig
+
+# Documentation that might contain sensitive info
 OAUTH-SUCCESS.md
 test-webhook-api.ps1
 webhook-api-tests.md
