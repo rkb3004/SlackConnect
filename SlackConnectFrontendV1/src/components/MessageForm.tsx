@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { Send, Clock, ChevronDown } from 'lucide-react';
+import { Send, Clock, ChevronDown, Hash, Users, MessageCircle, Calendar } from 'lucide-react';
 import Button from '@/components/ui/Button';
 import { useNotifications } from '@/contexts/NotificationsContext';
 import { SlackChannel, MessageFormData } from '@/types';
@@ -39,6 +39,8 @@ const MessageForm: React.FC<MessageFormProps> = ({ onMessageSent }) => {
   const [channels, setChannels] = useState<SlackChannel[]>([]);
   const [isLoadingChannels, setIsLoadingChannels] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [selectedChannel, setSelectedChannel] = useState<SlackChannel | null>(null);
+  const [messageLength, setMessageLength] = useState(0);
   const { addNotification } = useNotifications();
 
   const {
@@ -132,127 +134,195 @@ const MessageForm: React.FC<MessageFormProps> = ({ onMessageSent }) => {
     }
   };
 
-  const selectedChannel = channels.find(c => c.id === selectedChannelId);
+  const selectedChannelData = channels.find(c => c.id === selectedChannelId);
 
   return (
-    <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-      <h2 className="text-lg font-semibold text-black mb-4">
-        {isScheduled ? 'Schedule Message' : 'Send Message'}
-      </h2>
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center space-x-3">
+          <div className="p-2 bg-blue-500/20 rounded-lg">
+            <MessageCircle className="w-5 h-5 text-blue-400" />
+          </div>
+          <div>
+            <h2 className="text-lg font-semibold text-white">
+              {isScheduled ? 'Schedule Message Delivery' : 'Compose Message'}
+            </h2>
+            <p className="text-sm text-slate-400">
+              {isScheduled ? 'Set a future delivery time for your message' : 'Send instant message to Slack channel'}
+            </p>
+          </div>
+        </div>
+        
+        {/* Delivery Mode Toggle */}
+        <div className="flex items-center space-x-2 bg-slate-800/50 rounded-lg p-1">
+          <button
+            type="button"
+            onClick={() => setValue('is_scheduled', false)}
+            className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all ${
+              !isScheduled 
+                ? 'bg-blue-600 text-white shadow-sm' 
+                : 'text-slate-400 hover:text-white'
+            }`}
+          >
+            <Send className="w-3 h-3 inline mr-1" />
+            Instant
+          </button>
+          <button
+            type="button"
+            onClick={() => setValue('is_scheduled', true)}
+            className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all ${
+              isScheduled 
+                ? 'bg-purple-600 text-white shadow-sm' 
+                : 'text-slate-400 hover:text-white'
+            }`}
+          >
+            <Calendar className="w-3 h-3 inline mr-1" />
+            Scheduled
+          </button>
+        </div>
+      </div>
 
-      <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+      <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
         {/* Channel Selection */}
-        <div>
-          <label htmlFor="channel_id" className="block text-sm font-medium text-black mb-2">
-            Channel
+        <div className="space-y-2">
+          <label htmlFor="channel_id" className="block text-sm font-medium text-white">
+            Target Channel
           </label>
           <div className="relative">
             <select
               id="channel_id"
               {...register('channel_id')}
-              className="block w-full pl-3 pr-10 py-2 text-base border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 sm:text-sm rounded-md appearance-none bg-white"
+              onChange={(e) => {
+                const channel = channels.find(c => c.id === e.target.value);
+                setSelectedChannel(channel || null);
+              }}
+              className="block w-full pl-4 pr-10 py-3 bg-slate-800/50 border border-slate-600 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 rounded-lg text-white placeholder-slate-400 appearance-none transition-colors"
               disabled={isLoadingChannels}
             >
-              <option value="">
+              <option value="" className="bg-slate-800">
                 {isLoadingChannels ? 'Loading channels...' : 'Select a channel'}
               </option>
               {channels.map((channel) => (
-                <option key={channel.id} value={channel.id}>
+                <option key={channel.id} value={channel.id} className="bg-slate-800">
                   {channel.is_private ? '🔒' : '#'} {channel.name}
+                  {channel.is_general ? ' (General)' : ''}
                 </option>
               ))}
             </select>
-            <ChevronDown className="absolute right-3 top-2.5 h-5 w-5 text-gray-400 pointer-events-none" />
+            <ChevronDown className="absolute right-3 top-3.5 h-4 w-4 text-slate-400 pointer-events-none" />
           </div>
+          
           {errors.channel_id && (
-            <p className="mt-1 text-sm text-red-600">{errors.channel_id.message}</p>
-          )}
-          {selectedChannel && (
-            <p className="mt-1 text-xs text-black">
-              {selectedChannel.is_private ? 'Private channel' : 'Public channel'}
-              {selectedChannel.is_general && ' • General channel'}
+            <p className="text-sm text-red-400 flex items-center">
+              <span className="w-1 h-1 bg-red-400 rounded-full mr-2"></span>
+              {errors.channel_id.message}
             </p>
+          )}
+          
+          {selectedChannel && (
+            <div className="flex items-center space-x-2 text-xs text-slate-400">
+              {selectedChannel.is_private ? (
+                <Users className="w-3 h-3" />
+              ) : (
+                <Hash className="w-3 h-3" />
+              )}
+              <span>
+                {selectedChannel.is_private ? 'Private channel' : 'Public channel'}
+                {selectedChannel.is_general && ' • Default channel'}
+              </span>
+            </div>
           )}
         </div>
 
         {/* Message Content */}
-        <div>
-          <label htmlFor="message" className="block text-sm font-medium text-black mb-2">
-            Message
-          </label>
+        <div className="space-y-2">
+          <div className="flex items-center justify-between">
+            <label htmlFor="message" className="block text-sm font-medium text-white">
+              Message Content
+            </label>
+            <span className={`text-xs ${
+              messageLength > 3500 ? 'text-red-400' : 
+              messageLength > 3000 ? 'text-yellow-400' : 
+              'text-slate-400'
+            }`}>
+              {messageLength}/4000
+            </span>
+          </div>
           <textarea
             id="message"
             {...register('message')}
+            onChange={(e) => setMessageLength(e.target.value.length)}
             rows={4}
-            className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
-            placeholder="Enter your message here..."
+            className="block w-full px-4 py-3 bg-slate-800/50 border border-slate-600 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 rounded-lg text-white placeholder-slate-400 resize-none transition-colors"
+            placeholder="Type your message here..."
           />
           {errors.message && (
-            <p className="mt-1 text-sm text-red-600">{errors.message.message}</p>
+            <p className="text-sm text-red-400 flex items-center">
+              <span className="w-1 h-1 bg-red-400 rounded-full mr-2"></span>
+              {errors.message.message}
+            </p>
           )}
-          <div className="mt-1 flex justify-between">
-            <p className="text-xs text-black">
-              Supports Slack formatting (markdown, mentions, etc.)
-            </p>
-            <p className="text-xs text-black">
-              {watch('message')?.length || 0}/4000
-            </p>
-          </div>
         </div>
 
-        {/* Schedule Toggle */}
-        <div className="flex items-center">
-          <input
-            id="is_scheduled"
-            type="checkbox"
-            {...register('is_scheduled')}
-            className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
-          />
-          <label htmlFor="is_scheduled" className="ml-2 block text-sm text-black">
-            Schedule for later
-          </label>
-        </div>
-
-        {/* Schedule Date/Time */}
+        {/* Scheduling Options */}
         {isScheduled && (
-          <div className="animate-in slide-in-from-top duration-200">
-            <label htmlFor="scheduled_for" className="block text-sm font-medium text-black mb-2">
-              Schedule Date & Time
+          <div className="space-y-2 p-4 bg-purple-500/10 border border-purple-500/20 rounded-lg">
+            <label htmlFor="scheduled_for" className="block text-sm font-medium text-white">
+              Delivery Schedule
             </label>
             <input
-              id="scheduled_for"
               type="datetime-local"
+              id="scheduled_for"
               {...register('scheduled_for')}
               min={getMinScheduleDate()}
-              className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+              className="block w-full px-4 py-3 bg-slate-800/50 border border-slate-600 focus:border-purple-500 focus:ring-1 focus:ring-purple-500 rounded-lg text-white transition-colors"
             />
             {errors.scheduled_for && (
-              <p className="mt-1 text-sm text-red-600">{errors.scheduled_for.message}</p>
+              <p className="text-sm text-red-400 flex items-center">
+                <span className="w-1 h-1 bg-red-400 rounded-full mr-2"></span>
+                {errors.scheduled_for.message}
+              </p>
             )}
+            <p className="text-xs text-purple-300">
+              <Clock className="w-3 h-3 inline mr-1" />
+              Message will be delivered at the specified time
+            </p>
           </div>
         )}
 
-        {/* Submit Button */}
-        <div className="pt-4">
-          <Button
-            type="submit"
-            loading={isSubmitting}
-            disabled={isSubmitting || isLoadingChannels}
-            className="w-full"
-          >
-            {isScheduled ? (
-              <>
-                <Clock className="w-4 h-4 mr-2" />
-                Schedule Message
-              </>
-            ) : (
-              <>
-                <Send className="w-4 h-4 mr-2" />
-                Send Message
-              </>
-            )}
-          </Button>
-        </div>
+        {/* Action Button */}
+        <Button
+          type="submit"
+          loading={isSubmitting}
+          disabled={isSubmitting || isLoadingChannels}
+          className={`w-full py-3 font-medium rounded-lg transition-all ${
+            isScheduled
+              ? 'bg-purple-600 hover:bg-purple-700 text-white'
+              : 'bg-blue-600 hover:bg-blue-700 text-white'
+          }`}
+        >
+          {isSubmitting ? (
+            <div className="flex items-center justify-center">
+              <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2"></div>
+              {isScheduled ? 'Scheduling...' : 'Sending...'}
+            </div>
+          ) : (
+            <div className="flex items-center justify-center">
+              {isScheduled ? (
+                <>
+                  <Calendar className="w-4 h-4 mr-2" />
+                  Schedule Message
+                </>
+              ) : (
+                <>
+                  <Send className="w-4 h-4 mr-2" />
+                  Send Message
+                </>
+              )}
+            </div>
+          )}
+        </Button>
       </form>
     </div>
   );

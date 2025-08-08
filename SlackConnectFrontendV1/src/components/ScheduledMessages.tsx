@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { Calendar, Clock, Trash2, RefreshCw, MessageSquare, AlertTriangle } from 'lucide-react';
+import { Calendar, Clock, Trash2, RefreshCw, MessageSquare, AlertTriangle, CheckCircle, Hash, Lock } from 'lucide-react';
 import Button from '@/components/ui/Button';
 import { Loading } from '@/components/ui/Loading';
 import { useNotifications } from '@/contexts/NotificationsContext';
@@ -68,16 +68,37 @@ const ScheduledMessages: React.FC<ScheduledMessagesProps> = ({ refreshTrigger })
 
   const getStatusBadge = (status: ScheduledMessage['status']) => {
     const config = {
-      pending: { bg: 'bg-yellow-100', text: 'text-yellow-800', label: 'Pending' },
-      sent: { bg: 'bg-green-100', text: 'text-green-800', label: 'Sent' },
-      cancelled: { bg: 'bg-gray-100', text: 'text-gray-800', label: 'Cancelled' },
-      failed: { bg: 'bg-red-100', text: 'text-red-800', label: 'Failed' },
+      pending: { 
+        bg: 'bg-yellow-500/20', 
+        text: 'text-yellow-400', 
+        icon: Clock,
+        label: 'Pending' 
+      },
+      sent: { 
+        bg: 'bg-green-500/20', 
+        text: 'text-green-400', 
+        icon: CheckCircle,
+        label: 'Delivered' 
+      },
+      cancelled: { 
+        bg: 'bg-slate-500/20', 
+        text: 'text-slate-400', 
+        icon: AlertTriangle,
+        label: 'Cancelled' 
+      },
+      failed: { 
+        bg: 'bg-red-500/20', 
+        text: 'text-red-400', 
+        icon: AlertTriangle,
+        label: 'Failed' 
+      },
     };
 
-    const { bg, text, label } = config[status];
+    const { bg, text, icon: Icon, label } = config[status];
 
     return (
-      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${bg} ${text}`}>
+      <span className={`inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-medium ${bg} ${text} border border-current/20`}>
+        <Icon className="w-3 h-3 mr-1" />
         {label}
       </span>
     );
@@ -89,14 +110,14 @@ const ScheduledMessages: React.FC<ScheduledMessagesProps> = ({ refreshTrigger })
 
   if (messages.length === 0) {
     return (
-      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-        <div className="text-center">
-          <Calendar className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-          <h3 className="text-lg font-medium text-gray-900 mb-2">No Scheduled Messages</h3>
-          <p className="text-gray-500">
-            Messages you schedule will appear here. You can manage and cancel them before they&apos;re sent.
-          </p>
+      <div className="text-center py-8">
+        <div className="p-4 bg-slate-500/10 rounded-full w-fit mx-auto mb-4">
+          <Calendar className="w-8 h-8 text-slate-400" />
         </div>
+        <h3 className="text-lg font-medium text-white mb-2">No Scheduled Messages</h3>
+        <p className="text-slate-400 text-sm max-w-sm mx-auto">
+          Messages you schedule will appear here. You can manage and cancel them before delivery.
+        </p>
       </div>
     );
   }
@@ -109,16 +130,27 @@ const ScheduledMessages: React.FC<ScheduledMessagesProps> = ({ refreshTrigger })
   });
 
   return (
-    <div className="bg-white rounded-lg shadow-sm border border-gray-200">
-      <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
-        <h2 className="text-lg font-semibold text-gray-900">Scheduled Messages</h2>
-        <Button variant="ghost" size="sm" onClick={loadMessages}>
-          <RefreshCw className="w-4 h-4 mr-2" />
-          Refresh
+    <div className="space-y-4">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center space-x-2">
+          <h3 className="text-lg font-medium text-white">Scheduled Messages</h3>
+          <span className="bg-slate-500/20 text-slate-300 text-xs px-2 py-1 rounded-full">
+            {messages.length}
+          </span>
+        </div>
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={loadMessages}
+          className="text-slate-400 hover:text-white"
+        >
+          <RefreshCw className="w-4 h-4" />
         </Button>
       </div>
 
-      <div className="divide-y divide-gray-200">
+      {/* Messages List */}
+      <div className="space-y-3">
         {sortedMessages.map((message) => {
           const isCancelling = cancellingIds.has(message.id);
           const canCancel = message.status === 'pending';
@@ -126,70 +158,54 @@ const ScheduledMessages: React.FC<ScheduledMessagesProps> = ({ refreshTrigger })
           const isPastDue = scheduledTime < Date.now() && message.status === 'pending';
 
           return (
-            <div key={message.id} className="p-6 hover:bg-gray-50 transition-colors">
-              <div className="flex items-start justify-between">
+            <div key={message.id} className="bg-slate-800/50 border border-slate-700 rounded-lg p-4 hover:bg-slate-800/70 transition-colors">
+              <div className="flex items-start justify-between space-x-4">
+                {/* Message Content */}
                 <div className="flex-1 min-w-0">
-                  {/* Header */}
-                  <div className="flex items-center gap-3 mb-2">
-                    <div className="flex items-center text-sm text-gray-600">
-                      <MessageSquare className="w-4 h-4 mr-1" />
-                      <span className="font-medium">#{message.channel_name}</span>
+                  <div className="flex items-center space-x-3 mb-2">
+                    <div className="flex items-center space-x-2 text-sm text-slate-400">
+                      <Hash className="w-3 h-3" />
+                      <span>{message.channel_name || 'Unknown Channel'}</span>
                     </div>
                     {getStatusBadge(message.status)}
                     {isPastDue && (
-                      <div className="flex items-center text-amber-600" title="Past due - processing">
-                        <AlertTriangle className="w-4 h-4 mr-1" />
-                        <span className="text-xs">Processing</span>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Message Preview */}
-                  <div className="mb-3">
-                    <p className="text-gray-900 whitespace-pre-wrap">
-                      {truncateText(message.message, 200)}
-                    </p>
-                  </div>
-
-                  {/* Timing Info */}
-                  <div className="flex items-center gap-4 text-sm text-gray-500">
-                    <div className="flex items-center">
-                      <Clock className="w-4 h-4 mr-1" />
-                      <span>
-                        {formatDate(message.scheduled_for)} ({formatRelativeTime(message.scheduled_for)})
+                      <span className="text-xs text-red-400 bg-red-500/20 px-2 py-0.5 rounded border border-red-500/20">
+                        Overdue
                       </span>
-                    </div>
-                    {message.sent_at && (
-                      <div className="flex items-center text-green-600">
-                        <span>Sent {formatRelativeTime(message.sent_at)}</span>
-                      </div>
                     )}
                   </div>
-
-                  {/* Error Message */}
-                  {message.error_message && (
-                    <div className="mt-2 p-2 bg-red-50 rounded-md">
-                      <p className="text-sm text-red-800">
-                        <strong>Error:</strong> {message.error_message}
-                      </p>
+                  
+                  <p className="text-white text-sm mb-3 leading-relaxed">
+                    {truncateText(message.message, 120)}
+                  </p>
+                  
+                  <div className="flex items-center space-x-4 text-xs text-slate-400">
+                    <div className="flex items-center space-x-1">
+                      <Calendar className="w-3 h-3" />
+                      <span>{formatDate(scheduledTime)}</span>
                     </div>
-                  )}
+                    <div className="flex items-center space-x-1">
+                      <Clock className="w-3 h-3" />
+                      <span>{formatRelativeTime(scheduledTime)}</span>
+                    </div>
+                  </div>
                 </div>
 
-                {/* Actions */}
+                {/* Action Button */}
                 {canCancel && (
-                  <div className="ml-4 flex-shrink-0">
-                    <Button
-                      variant="danger"
-                      size="sm"
-                      onClick={() => handleCancelMessage(message.id)}
-                      loading={isCancelling}
-                      disabled={isCancelling}
-                    >
-                      <Trash2 className="w-4 h-4 mr-1" />
-                      Cancel
-                    </Button>
-                  </div>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => handleCancelMessage(message.id)}
+                    disabled={isCancelling}
+                    className="text-red-400 hover:text-red-300 hover:bg-red-500/20 shrink-0"
+                  >
+                    {isCancelling ? (
+                      <div className="w-4 h-4 border-2 border-red-400 border-t-transparent rounded-full animate-spin" />
+                    ) : (
+                      <Trash2 className="w-4 h-4" />
+                    )}
+                  </Button>
                 )}
               </div>
             </div>

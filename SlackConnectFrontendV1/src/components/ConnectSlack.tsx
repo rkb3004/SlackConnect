@@ -2,19 +2,35 @@
 
 import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Slack, ExternalLink, Send, Calendar } from 'lucide-react';
+import { 
+  Slack, 
+  Shield, 
+  Zap, 
+  Clock,
+  CheckCircle,
+  ArrowRight,
+  Lock,
+  Wifi
+} from 'lucide-react';
 import Button from '@/components/ui/Button';
 import { useNotifications } from '@/contexts/NotificationsContext';
 import apiClient from '@/lib/api';
 
 const ConnectSlack: React.FC = () => {
   const [isConnecting, setIsConnecting] = useState(false);
+  const [connectionStep, setConnectionStep] = useState(0);
   const { addNotification } = useNotifications();
   const router = useRouter();
 
   const handleConnect = async () => {
     try {
       setIsConnecting(true);
+      setConnectionStep(1);
+      
+      // Simulate connection steps
+      setTimeout(() => setConnectionStep(2), 800);
+      setTimeout(() => setConnectionStep(3), 1600);
+      
       const response = await apiClient.getAuthUrl();
 
       if (response.success && response.data) {
@@ -23,8 +39,13 @@ const ConnectSlack: React.FC = () => {
           sessionStorage.setItem('oauth_state', response.data.state);
         }
 
-        // Redirect to Slack OAuth
-        window.location.href = response.data.auth_url;
+        setConnectionStep(4);
+        setTimeout(() => {
+          // Redirect to Slack OAuth
+          if (response.data?.auth_url) {
+            window.location.href = response.data.auth_url;
+          }
+        }, 1000);
       } else {
         throw new Error(response.error || 'Failed to get authorization URL');
       }
@@ -32,99 +53,147 @@ const ConnectSlack: React.FC = () => {
       console.error('Connection error:', error);
       addNotification('error', error.message || 'Failed to connect to Slack');
       setIsConnecting(false);
+      setConnectionStep(0);
     }
   };
 
+  const connectionSteps = [
+    { icon: Shield, text: "Initializing Security", color: "text-blue-400" },
+    { icon: Wifi, text: "Connecting to Slack", color: "text-purple-400" },
+    { icon: Lock, text: "Securing Connection", color: "text-green-400" },
+    { icon: CheckCircle, text: "Redirecting to Slack", color: "text-emerald-400" }
+  ];
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-purple-50 to-blue-50 flex items-center justify-center p-4">
+    <div className="min-h-screen bg-slate-900 flex items-center justify-center p-4">
       <div className="max-w-md w-full">
-        <div className="bg-white rounded-lg shadow-xl p-8 text-center">
-          {/* Logo/Header */}
-          <div className="flex justify-center mb-6">
-            <div className="bg-blue-100 p-3 rounded-full">
-              <Slack className="w-8 h-8 text-blue-600" />
+        <div className="card rounded-2xl p-8 shadow-xl">
+          {/* Header */}
+          <div className="text-center mb-8">
+            <div className="flex justify-center mb-6">
+              <div className="p-4 bg-blue-500/20 rounded-full">
+                <Slack className="w-12 h-12 text-blue-400" />
+              </div>
+            </div>
+
+            <h1 className="text-3xl font-bold text-white mb-4">
+              Connect to Slack
+            </h1>
+
+            <p className="text-slate-300 mb-2">
+              Professional messaging platform integration
+            </p>
+            <p className="text-slate-400 text-sm">
+              Secure OAuth authentication with enterprise-grade security
+            </p>
+          </div>
+
+          {/* Features */}
+          <div className="space-y-4 mb-8">
+            <div className="flex items-center space-x-4 p-4 bg-slate-800/50 rounded-lg border border-slate-700">
+              <div className="bg-blue-500/20 rounded-lg p-2">
+                <Zap className="w-5 h-5 text-blue-400" />
+              </div>
+              <div>
+                <h3 className="font-medium text-white">Instant Delivery</h3>
+                <p className="text-sm text-slate-400">Real-time message processing</p>
+              </div>
+            </div>
+
+            <div className="flex items-center space-x-4 p-4 bg-slate-800/50 rounded-lg border border-slate-700">
+              <div className="bg-purple-500/20 rounded-lg p-2">
+                <Clock className="w-5 h-5 text-purple-400" />
+              </div>
+              <div>
+                <h3 className="font-medium text-white">Smart Scheduling</h3>
+                <p className="text-sm text-slate-400">Flexible message timing options</p>
+              </div>
+            </div>
+
+            <div className="flex items-center space-x-4 p-4 bg-slate-800/50 rounded-lg border border-slate-700">
+              <div className="bg-green-500/20 rounded-lg p-2">
+                <Shield className="w-5 h-5 text-green-400" />
+              </div>
+              <div>
+                <h3 className="font-medium text-white">Enterprise Security</h3>
+                <p className="text-sm text-slate-400">OAuth 2.0 with secure token management</p>
+              </div>
             </div>
           </div>
 
-          <h1 className="text-2xl font-bold text-black mb-2">
-            Welcome to Slack Connect
-          </h1>
-
-          <p className="text-black mb-8">
-            Send instant messages and schedule messages for later delivery to your Slack workspace.
-          </p>
-
-          {/* Features List */}
-          <div className="text-left mb-8 space-y-3">
-            <div className="flex items-start">
-              <div className="bg-green-100 rounded-full p-1 mr-3 mt-0.5">
-                <div className="w-2 h-2 bg-green-600 rounded-full"></div>
+          {/* Connection Status */}
+          {isConnecting && (
+            <div className="mb-6 p-4 bg-slate-800/50 rounded-lg border border-slate-700">
+              <div className="flex items-center justify-between mb-3">
+                <span className="text-sm font-medium text-white">Connection Status</span>
+                <div className="w-2 h-2 bg-blue-400 rounded-full animate-pulse"></div>
               </div>
-              <div>
-                <p className="text-sm font-medium text-black">Send Instant Messages</p>
-                <p className="text-xs text-black">Send messages immediately to any channel</p>
-              </div>
-            </div>
-
-            <div className="flex items-start">
-              <div className="bg-blue-100 rounded-full p-1 mr-3 mt-0.5">
-                <div className="w-2 h-2 bg-blue-600 rounded-full"></div>
-              </div>
-              <div>
-                <p className="text-sm font-medium text-black">Schedule for Later</p>
-                <p className="text-xs text-black">Schedule messages for future delivery</p>
-              </div>
-            </div>
-
-            <div className="flex items-start">
-              <div className="bg-purple-100 rounded-full p-1 mr-3 mt-0.5">
-                <div className="w-2 h-2 bg-purple-600 rounded-full"></div>
-              </div>
-              <div>
-                <p className="text-sm font-medium text-black">Manage Scheduled Messages</p>
-                <p className="text-xs text-black">View and cancel scheduled messages</p>
+              
+              <div className="space-y-2">
+                {connectionSteps.map((step, index) => {
+                  const StepIcon = step.icon;
+                  const isActive = connectionStep >= index + 1;
+                  const isComplete = connectionStep > index + 1;
+                  
+                  return (
+                    <div key={index} className={`flex items-center space-x-3 transition-all duration-500 ${
+                      isActive ? 'opacity-100' : 'opacity-50'
+                    }`}>
+                      <div className={`p-1.5 rounded-lg ${
+                        isComplete ? 'bg-green-500/20' : isActive ? 'bg-blue-500/20' : 'bg-slate-600/20'
+                      }`}>
+                        <StepIcon className={`w-4 h-4 ${
+                          isComplete ? 'text-green-400' : isActive ? 'text-blue-400' : 'text-slate-500'
+                        }`} />
+                      </div>
+                      <span className={`text-sm ${step.color}`}>
+                        {step.text}
+                      </span>
+                    </div>
+                  );
+                })}
               </div>
             </div>
-          </div>
+          )}
 
           {/* Connect Button */}
           <Button
             onClick={handleConnect}
             loading={isConnecting}
             disabled={isConnecting}
-            className="w-full mb-4"
+            className="w-full mb-4 bg-blue-600 hover:bg-blue-700 text-white font-medium py-3 px-6 rounded-lg text-base shadow-lg group"
             size="lg"
           >
-            <Slack className="w-5 h-5 mr-2" />
-            Connect to Slack
-            <ExternalLink className="w-4 h-4 ml-2" />
+            {isConnecting ? (
+              <>
+                <div className="w-4 h-4 mr-3 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                Connecting...
+              </>
+            ) : (
+              <>
+                <Slack className="w-5 h-5 mr-2" />
+                Connect to Slack
+                <ArrowRight className="w-4 h-4 ml-2 group-hover:translate-x-1 transition-transform" />
+              </>
+            )}
           </Button>
 
-          {/* Send or Schedule Message Button */}
-          <Button
-            onClick={() => router.push('/webhooks')}
-            className="w-full bg-gradient-to-r from-green-500 to-blue-500 hover:from-green-600 hover:to-blue-600 text-white font-medium"
-            size="lg"
-          >
-            <Send className="w-5 h-5 mr-2" />
-            Send or Schedule a Message
-            <Calendar className="w-4 h-4 ml-2" />
-          </Button>
-
-          {/* Security Note */}
-          <p className="text-xs text-black mt-4">
-            🔒 We only request permissions to read your channels and send messages.
-            Your data is secure and never stored permanently.
-          </p>
+          {/* Security Notice */}
+          <div className="text-center">
+            <p className="text-xs text-slate-400 mb-2">
+              🔒 Secured with OAuth 2.0 authentication
+            </p>
+            <p className="text-xs text-slate-500">
+              Your credentials are protected and never stored on our servers
+            </p>
+          </div>
         </div>
 
-        {/* Additional Info */}
+        {/* Bottom Info */}
         <div className="mt-6 text-center">
-          <p className="text-sm text-black">
-            Need help? Check our{' '}
-            <a href="#" className="text-blue-600 hover:text-blue-700 underline">
-              setup guide
-            </a>
+          <p className="text-sm text-slate-400">
+            Powered by <span className="text-blue-400">Cobalt.ai</span> •{' '}
+            <span className="text-slate-500">Enterprise Grade Security</span>
           </p>
         </div>
       </div>
