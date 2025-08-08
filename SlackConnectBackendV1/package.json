@@ -2,9 +2,9 @@
   "name": "slack-connect-backend",
   "version": "1.0.0",
   "description": "Backend for Slack Connect application",
-  "main": "dist/server.js",
+  "main": "dist/index.js",
   "scripts": {
-    "start": "node dist/server.js",
+    "start": "node dist/index.js",
     "dev": "nodemon src/server.ts",
     "build": "tsc",
     "build:watch": "tsc -w",

@@ -36,6 +36,7 @@ class Server {
     const allowedOrigins = [
       process.env.FRONTEND_URL,
       'https://slackconnectfrontendv1.netlify.app',
+      'https://slackconnectfrontend.netlify.app', // Current frontend URL
       'http://localhost:3000' // For development
     ].filter((origin): origin is string => Boolean(origin));
 

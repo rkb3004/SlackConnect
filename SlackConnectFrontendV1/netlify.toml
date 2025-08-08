@@ -5,8 +5,8 @@
 
 # Environment variables for production
 [build.environment]
-  NEXT_PUBLIC_BACKEND_URL = "https://slackconnectbackendv1.onrender.com/api"
-  NEXT_PUBLIC_PRODUCTION_URL = "https://slackconnectfrontendv1.netlify.app"
+  NEXT_PUBLIC_BACKEND_URL = "https://slackconnectbackend-i5vj.onrender.com/api"
+  NEXT_PUBLIC_PRODUCTION_URL = "https://slackconnectfrontend.netlify.app"
   NETLIFY = "true"
 
 # Redirect rules for SPA routing
