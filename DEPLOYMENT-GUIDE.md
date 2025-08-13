@@ -52,11 +52,11 @@ After successful deployment, your users will experience:
 *Intuitive workspace configuration interface*
 
 #### Message Scheduling
-![Scheduling Interface](./img/3.png)
+![Scheduling Interface](./img/5.png)
 *Advanced message scheduling with date/time picker*
 
 #### Message Testing
-![Testing Interface](./img/4.png)
+![Testing Interface](./img/6.png)
 *Professional testing interface for validation*
 
 ### **Step 1: Update Backend Environment Variables**
