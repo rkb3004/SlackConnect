@@ -271,7 +271,7 @@ For complete deployment instructions, see our [**Deployment Guide**](./DEPLOYMEN
 - Clear instructions
 
 #### 3. Message Scheduling Interface
-![Message Scheduling](./img/3.png)
+![Message Scheduling](./img/5.png)
 *Advanced scheduling interface with comprehensive options*
 
 **Capabilities:**
@@ -282,7 +282,7 @@ For complete deployment instructions, see our [**Deployment Guide**](./DEPLOYMEN
 - Preview functionality
 
 #### 4. Message Testing & Validation
-![Message Testing](./img/4.png)
+![Message Testing](./img/6.png)
 *Professional testing interface for message validation*
 
 **Features:**
