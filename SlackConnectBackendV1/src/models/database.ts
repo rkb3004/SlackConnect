@@ -1,96 +1,109 @@
-import Database from 'better-sqlite3';
-import path from 'path';
+import { Pool, PoolClient } from 'pg';
 import { User, ScheduledMessage } from './types';
 
 class DatabaseManager {
-  private db: Database.Database;
+  private static instance: DatabaseManager;
+  private pool: Pool;
+  private isInitialized = false;
 
-  constructor() {
-    let dbPath = process.env.DATABASE_PATH || path.join(__dirname, '../../database/slack-connect.db');
-
-    // In production (Render), ensure we use a writable directory
-    if (process.env.NODE_ENV === 'production') {
-      dbPath = process.env.DATABASE_PATH || path.join(process.cwd(), 'data/slack_connect.db');
+  private constructor() {
+    const connectionString = process.env.DATABASE_PATH;
+    
+    if (!connectionString) {
+      throw new Error('DATABASE_PATH environment variable is required');
     }
 
-    // Ensure database directory exists
-    const fs = require('fs');
-    const dbDir = path.dirname(dbPath);
-    if (!fs.existsSync(dbDir)) {
-      fs.mkdirSync(dbDir, { recursive: true });
-    }
-
-    console.log(`Database path: ${dbPath}`);
-    this.db = new Database(dbPath);
-    this.initializeTables();
+    console.log('Connecting to PostgreSQL database...');
+    this.pool = new Pool({
+      connectionString,
+      ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
+      max: 10, // Maximum number of clients in the pool
+      idleTimeoutMillis: 30000, // 30 seconds
+      connectionTimeoutMillis: 5000, // 5 seconds
+    });
   }
 
-  private initializeTables(): void {
-    // Users table
-    this.db.exec(`
-      CREATE TABLE IF NOT EXISTS users (
-        id TEXT PRIMARY KEY,
-        slack_user_id TEXT UNIQUE NOT NULL,
-        team_id TEXT NOT NULL,
-        access_token TEXT NOT NULL,
-        refresh_token TEXT,
-        webhook_url TEXT,
-        token_expires_at INTEGER,
-        created_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now')),
-        updated_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now'))
-      )
-    `);
+  public static getInstance(): DatabaseManager {
+    if (!DatabaseManager.instance) {
+      DatabaseManager.instance = new DatabaseManager();
+    }
+    return DatabaseManager.instance;
+  }
 
-    // Add webhook_url column if it doesn't exist (for existing databases)
+  public async initialize(): Promise<void> {
+    if (this.isInitialized) {
+      return;
+    }
+
+    await this.initializeTables();
+    this.isInitialized = true;
+  }
+
+  private async initializeTables(): Promise<void> {
+    const client = await this.pool.connect();
+    
     try {
-      this.db.exec(`ALTER TABLE users ADD COLUMN webhook_url TEXT DEFAULT NULL`);
+      // Users table
+      await client.query(`
+        CREATE TABLE IF NOT EXISTS users (
+          id TEXT PRIMARY KEY,
+          slack_user_id TEXT UNIQUE NOT NULL,
+          team_id TEXT NOT NULL,
+          access_token TEXT NOT NULL,
+          refresh_token TEXT,
+          webhook_url TEXT,
+          token_expires_at BIGINT,
+          created_at BIGINT NOT NULL DEFAULT EXTRACT(EPOCH FROM NOW()),
+          updated_at BIGINT NOT NULL DEFAULT EXTRACT(EPOCH FROM NOW())
+        )
+      `);
+
+      // Scheduled messages table
+      await client.query(`
+        CREATE TABLE IF NOT EXISTS scheduled_messages (
+          id TEXT PRIMARY KEY,
+          user_id TEXT NOT NULL,
+          channel_id TEXT NOT NULL,
+          channel_name TEXT NOT NULL,
+          message TEXT NOT NULL,
+          scheduled_for BIGINT NOT NULL,
+          status TEXT NOT NULL DEFAULT 'pending',
+          created_at BIGINT NOT NULL DEFAULT EXTRACT(EPOCH FROM NOW()),
+          sent_at BIGINT,
+          error_message TEXT,
+          FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
+        )
+      `);
+
+      // Create indexes for better performance
+      await client.query(`
+        CREATE INDEX IF NOT EXISTS idx_users_slack_user_id ON users (slack_user_id);
+        CREATE INDEX IF NOT EXISTS idx_scheduled_messages_user_id ON scheduled_messages (user_id);
+        CREATE INDEX IF NOT EXISTS idx_scheduled_messages_status ON scheduled_messages (status);
+        CREATE INDEX IF NOT EXISTS idx_scheduled_messages_scheduled_for ON scheduled_messages (scheduled_for);
+      `);
+
+      console.log('Database tables initialized successfully');
+
+      // Create special webhook user if it doesn't exist
+      await this.ensureWebhookUser();
     } catch (error) {
-      // Column already exists or other error, continue
-      console.log('Webhook URL column already exists or error adding it');
+      console.error('Error initializing database tables:', error);
+      throw error;
+    } finally {
+      client.release();
     }
-
-    // Scheduled messages table
-    this.db.exec(`
-      CREATE TABLE IF NOT EXISTS scheduled_messages (
-        id TEXT PRIMARY KEY,
-        user_id TEXT NOT NULL,
-        channel_id TEXT NOT NULL,
-        channel_name TEXT NOT NULL,
-        message TEXT NOT NULL,
-        scheduled_for INTEGER NOT NULL,
-        status TEXT NOT NULL DEFAULT 'pending',
-        created_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now')),
-        sent_at INTEGER,
-        error_message TEXT,
-        FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
-      )
-    `);
-
-    // Create indexes for better performance
-    this.db.exec(`
-      CREATE INDEX IF NOT EXISTS idx_users_slack_user_id ON users (slack_user_id);
-      CREATE INDEX IF NOT EXISTS idx_scheduled_messages_user_id ON scheduled_messages (user_id);
-      CREATE INDEX IF NOT EXISTS idx_scheduled_messages_status ON scheduled_messages (status);
-      CREATE INDEX IF NOT EXISTS idx_scheduled_messages_scheduled_for ON scheduled_messages (scheduled_for);
-    `);
-
-    console.log('Database tables initialized successfully');
-
-    // Create special webhook user if it doesn't exist
-    this.ensureWebhookUser();
   }
 
-  private ensureWebhookUser(): void {
+  private async ensureWebhookUser(): Promise<void> {
     try {
-      const existingUser = this.getUserById('webhook-user');
+      const existingUser = await this.getUserById('webhook-user');
       if (!existingUser) {
         const now = Math.floor(Date.now() / 1000);
-        const stmt = this.db.prepare(`
+        await this.pool.query(`
           INSERT INTO users (id, slack_user_id, team_id, access_token, refresh_token, webhook_url, token_expires_at, created_at, updated_at)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-        `);
-
-        stmt.run(
+          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+        `, [
           'webhook-user',
           'webhook-user',
           'teamalpha-team',
@@ -100,73 +113,69 @@ class DatabaseManager {
           null,
           now,
           now
-        );
+        ]);
         console.log('Created special webhook user for TeamAlpha scheduling');
       }
     } catch (error) {
-      console.log('Webhook user already exists or error creating it');
+      console.log('Webhook user already exists or error creating it:', error);
     }
   }
 
   // User operations
-  createUser(user: Omit<User, 'created_at' | 'updated_at'>): User {
+  async createUser(user: Omit<User, 'created_at' | 'updated_at'>): Promise<User> {
     const now = Math.floor(Date.now() / 1000);
-    const stmt = this.db.prepare(`
+    
+    await this.pool.query(`
       INSERT INTO users (id, slack_user_id, team_id, access_token, refresh_token, token_expires_at, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-    `);
-
-    stmt.run(
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+    `, [
       user.id,
       user.slack_user_id,
       user.team_id,
       user.access_token,
-      user.refresh_token,
-      user.token_expires_at,
+      user.refresh_token || null,
+      user.token_expires_at || null,
       now,
       now
-    );
+    ]);
 
     return { ...user, created_at: now, updated_at: now };
   }
 
-  getUserById(id: string): User | undefined {
-    const stmt = this.db.prepare('SELECT * FROM users WHERE id = ?');
-    return stmt.get(id) as User | undefined;
+  async getUserById(id: string): Promise<User | undefined> {
+    const result = await this.pool.query('SELECT * FROM users WHERE id = $1', [id]);
+    return result.rows[0] as User | undefined;
   }
 
-  getUserBySlackId(slackUserId: string): User | undefined {
-    const stmt = this.db.prepare('SELECT * FROM users WHERE slack_user_id = ?');
-    return stmt.get(slackUserId) as User | undefined;
+  async getUserBySlackId(slackUserId: string): Promise<User | undefined> {
+    const result = await this.pool.query('SELECT * FROM users WHERE slack_user_id = $1', [slackUserId]);
+    return result.rows[0] as User | undefined;
   }
 
-  updateUser(id: string, updates: Partial<User>): void {
+  async updateUser(id: string, updates: Partial<User>): Promise<void> {
     const now = Math.floor(Date.now() / 1000);
     const fields = Object.keys(updates).filter(key => key !== 'id' && key !== 'created_at');
 
     if (fields.length === 0) return;
 
-    const setClause = fields.map(field => `${field} = ?`).join(', ');
+    const setClause = fields.map((field, index) => `${field} = $${index + 1}`).join(', ');
     const values = fields.map(field => updates[field as keyof User]);
 
-    const stmt = this.db.prepare(`
+    await this.pool.query(`
       UPDATE users 
-      SET ${setClause}, updated_at = ? 
-      WHERE id = ?
-    `);
-
-    stmt.run(...values, now, id);
+      SET ${setClause}, updated_at = $${fields.length + 1}
+      WHERE id = $${fields.length + 2}
+    `, [...values, now, id]);
   }
 
   // Scheduled message operations
-  createScheduledMessage(message: Omit<ScheduledMessage, 'created_at'>): ScheduledMessage {
+  async createScheduledMessage(message: Omit<ScheduledMessage, 'created_at'>): Promise<ScheduledMessage> {
     const now = Math.floor(Date.now() / 1000);
-    const stmt = this.db.prepare(`
+    
+    await this.pool.query(`
       INSERT INTO scheduled_messages (id, user_id, channel_id, channel_name, message, scheduled_for, status, created_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-    `);
-
-    stmt.run(
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+    `, [
       message.id,
       message.user_id,
       message.channel_id,
@@ -175,72 +184,90 @@ class DatabaseManager {
       message.scheduled_for,
       message.status,
       now
-    );
+    ]);
 
     return { ...message, created_at: now };
   }
 
-  getScheduledMessagesByUserId(userId: string): ScheduledMessage[] {
-    const stmt = this.db.prepare(`
+  async getScheduledMessagesByUserId(userId: string): Promise<ScheduledMessage[]> {
+    const result = await this.pool.query(`
       SELECT * FROM scheduled_messages 
-      WHERE user_id = ? 
+      WHERE user_id = $1 
       ORDER BY scheduled_for ASC
-    `);
-    return stmt.all(userId) as ScheduledMessage[];
+    `, [userId]);
+    
+    return result.rows as ScheduledMessage[];
   }
 
-  getPendingMessages(): ScheduledMessage[] {
+  async getPendingMessages(): Promise<ScheduledMessage[]> {
     const now = Math.floor(Date.now() / 1000);
-    const stmt = this.db.prepare(`
+    const result = await this.pool.query(`
       SELECT * FROM scheduled_messages 
-      WHERE status = 'pending' AND scheduled_for <= ?
+      WHERE status = 'pending' AND scheduled_for <= $1
       ORDER BY scheduled_for ASC
-    `);
-    return stmt.all(now) as ScheduledMessage[];
+    `, [now]);
+    
+    return result.rows as ScheduledMessage[];
   }
 
-  updateScheduledMessage(id: string, updates: Partial<ScheduledMessage>): void {
+  async updateScheduledMessage(id: string, updates: Partial<ScheduledMessage>): Promise<void> {
     const fields = Object.keys(updates).filter(key => key !== 'id' && key !== 'created_at');
 
     if (fields.length === 0) return;
 
-    const setClause = fields.map(field => `${field} = ?`).join(', ');
+    const setClause = fields.map((field, index) => `${field} = $${index + 1}`).join(', ');
     const values = fields.map(field => updates[field as keyof ScheduledMessage]);
 
-    const stmt = this.db.prepare(`
+    await this.pool.query(`
       UPDATE scheduled_messages 
       SET ${setClause}
-      WHERE id = ?
-    `);
-
-    stmt.run(...values, id);
+      WHERE id = $${fields.length + 1}
+    `, [...values, id]);
   }
 
-  deleteScheduledMessage(id: string, userId: string): boolean {
-    const stmt = this.db.prepare('DELETE FROM scheduled_messages WHERE id = ? AND user_id = ?');
-    const result = stmt.run(id, userId);
-    return result.changes > 0;
+  async deleteScheduledMessage(id: string, userId: string): Promise<boolean> {
+    const result = await this.pool.query(
+      'DELETE FROM scheduled_messages WHERE id = $1 AND user_id = $2',
+      [id, userId]
+    );
+    return (result.rowCount || 0) > 0;
   }
 
   // Cleanup operations
-  cleanupOldMessages(daysBefore: number = 30): number {
+  async cleanupOldMessages(daysBefore: number = 30): Promise<number> {
     const cutoffTime = Math.floor(Date.now() / 1000) - (daysBefore * 24 * 60 * 60);
-    const stmt = this.db.prepare(`
+    const result = await this.pool.query(`
       DELETE FROM scheduled_messages 
       WHERE (status = 'sent' OR status = 'cancelled') 
-      AND created_at < ?
-    `);
-    const result = stmt.run(cutoffTime);
-    return result.changes;
+      AND created_at < $1
+    `, [cutoffTime]);
+    
+    return result.rowCount || 0;
   }
 
-  close(): void {
-    this.db.close();
+  async close(): Promise<void> {
+    await this.pool.end();
   }
 
-  // Get database instance for transactions
-  getDatabase(): Database.Database {
-    return this.db;
+  // Get database pool for transactions
+  getPool(): Pool {
+    return this.pool;
+  }
+
+  // Helper method for transactions
+  async withTransaction<T>(callback: (client: PoolClient) => Promise<T>): Promise<T> {
+    const client = await this.pool.connect();
+    try {
+      await client.query('BEGIN');
+      const result = await callback(client);
+      await client.query('COMMIT');
+      return result;
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
   }
 }
 

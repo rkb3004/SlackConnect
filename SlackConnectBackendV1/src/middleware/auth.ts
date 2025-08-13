@@ -7,7 +7,12 @@ import DatabaseManager from '../models/database';
 dotenv.config();
 
 const authService = new AuthService();
-const db = new DatabaseManager();
+const db = DatabaseManager.getInstance();
+
+// Initialize database
+db.initialize().catch(error => {
+  console.error('Failed to initialize database in auth middleware:', error);
+});
 
 /**
  * Middleware to authenticate JWT tokens
@@ -29,7 +34,7 @@ export const authenticateToken = async (
     }
 
     const decoded = authService.verifyToken(token);
-    const user = db.getUserById(decoded.user_id);
+    const user = await db.getUserById(decoded.user_id);
 
     if (!user) {
       res.status(401).json({
@@ -63,7 +68,7 @@ export const optionalAuth = async (
 
     if (token) {
       const decoded = authService.verifyToken(token);
-      const user = db.getUserById(decoded.user_id);
+      const user = await db.getUserById(decoded.user_id);
       if (user) {
         req.user = user;
       }

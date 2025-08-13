@@ -13,7 +13,12 @@ class MessageController {
   private db: DatabaseManager;
 
   constructor() {
-    this.db = new DatabaseManager();
+    this.db = DatabaseManager.getInstance();
+    
+    // Initialize database
+    this.db.initialize().catch(error => {
+      console.error('Failed to initialize database:', error);
+    });
   }
 
   /**
@@ -210,7 +215,7 @@ class MessageController {
       const user = req.user!;
       const { channel_id, channel_name, message, scheduled_for } = req.body as ScheduleMessageRequest;
 
-      const scheduledMessage = this.db.createScheduledMessage({
+      const scheduledMessage = await await this.db.createScheduledMessage({
         id: uuidv4(),
         user_id: user.id,
         channel_id,
@@ -249,7 +254,7 @@ class MessageController {
     try {
       const user = req.user!;
 
-      const scheduledMessages = this.db.getScheduledMessagesByUserId(user.id);
+      const scheduledMessages = await await this.db.getScheduledMessagesByUserId(user.id);
 
       res.json({
         success: true,
@@ -282,7 +287,7 @@ class MessageController {
       const user = req.user!;
       const { id } = req.params;
 
-      const success = this.db.deleteScheduledMessage(id, user.id);
+      const success = await this.db.deleteScheduledMessage(id, user.id);
 
       if (!success) {
         res.status(404).json({
@@ -315,7 +320,7 @@ class MessageController {
       const { message, scheduled_for } = req.body;
 
       // Get the message first to check ownership and status
-      const scheduledMessages = this.db.getScheduledMessagesByUserId(user.id);
+      const scheduledMessages = await this.db.getScheduledMessagesByUserId(user.id);
       const existingMessage = scheduledMessages.find(msg => msg.id === id);
 
       if (!existingMessage) {
@@ -339,7 +344,7 @@ class MessageController {
       if (message !== undefined) updates.message = message;
       if (scheduled_for !== undefined) updates.scheduled_for = scheduled_for;
 
-      this.db.updateScheduledMessage(id, updates);
+      await this.db.updateScheduledMessage(id, updates);
 
       res.json({
         success: true,
@@ -412,7 +417,7 @@ class MessageController {
       }
 
       // Create a scheduled message for TeamAlpha webhook
-      const scheduledMessage = this.db.createScheduledMessage({
+      const scheduledMessage = await this.db.createScheduledMessage({
         id: uuidv4(),
         user_id: 'webhook-user', // Special user for webhook messages
         channel_id: 'teamalpha-webhook',
@@ -448,7 +453,7 @@ class MessageController {
   public getWebhookScheduledMessages = async (req: Request, res: Response): Promise<void> => {
     try {
       // Get all scheduled messages for webhook user
-      const scheduledMessages = this.db.getScheduledMessagesByUserId('webhook-user');
+      const scheduledMessages = await this.db.getScheduledMessagesByUserId('webhook-user');
 
       res.json({
         success: true,
@@ -492,7 +497,7 @@ class MessageController {
       }
 
       // Get the message to verify it's a webhook message and exists
-      const scheduledMessages = this.db.getScheduledMessagesByUserId('webhook-user');
+      const scheduledMessages = await this.db.getScheduledMessagesByUserId('webhook-user');
       const message = scheduledMessages.find(msg => msg.id === id);
 
       if (!message) {
@@ -512,7 +517,7 @@ class MessageController {
       }
 
       // Cancel the message
-      this.db.updateScheduledMessage(id, {
+      await this.db.updateScheduledMessage(id, {
         status: 'cancelled'
       });
 
@@ -546,7 +551,7 @@ class MessageController {
       }
 
       // Get the message to verify it's a webhook message and exists
-      const scheduledMessages = this.db.getScheduledMessagesByUserId('webhook-user');
+      const scheduledMessages = await this.db.getScheduledMessagesByUserId('webhook-user');
       const existingMessage = scheduledMessages.find(msg => msg.id === id);
 
       if (!existingMessage) {
@@ -579,10 +584,10 @@ class MessageController {
       }
 
       // Update the message
-      this.db.updateScheduledMessage(id, updates);
+      await this.db.updateScheduledMessage(id, updates);
 
       // Get updated message
-      const updatedMessages = this.db.getScheduledMessagesByUserId('webhook-user');
+      const updatedMessages = await this.db.getScheduledMessagesByUserId('webhook-user');
       const updatedMessage = updatedMessages.find(msg => msg.id === id);
 
       res.json({

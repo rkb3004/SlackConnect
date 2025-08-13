@@ -14,8 +14,13 @@ class SchedulerService {
   private tasks: cron.ScheduledTask[] = [];
 
   constructor() {
-    this.db = new DatabaseManager();
+    this.db = DatabaseManager.getInstance();
     this.slackService = new SlackService();
+    
+    // Initialize database
+    this.db.initialize().catch(error => {
+      console.error('Failed to initialize database in scheduler:', error);
+    });
   }
 
   /**
@@ -55,7 +60,7 @@ class SchedulerService {
    */
   private async processPendingMessages(): Promise<void> {
     try {
-      const pendingMessages = this.db.getPendingMessages();
+      const pendingMessages = await this.db.getPendingMessages();
 
       if (pendingMessages.length === 0) {
         return;
@@ -92,7 +97,7 @@ class SchedulerService {
         await this.slackService.sendWebhookMessage(webhookUrl, message.message);
 
         // Update message status to sent
-        this.db.updateScheduledMessage(message.id, {
+        await this.db.updateScheduledMessage(message.id, {
           status: 'sent',
           sent_at: Math.floor(Date.now() / 1000)
         });
@@ -102,7 +107,7 @@ class SchedulerService {
       }
 
       // Handle OAuth-based message
-      const user = this.db.getUserById(message.user_id);
+      const user = await this.db.getUserById(message.user_id);
       if (!user) {
         throw new Error(`User not found: ${message.user_id}`);
       }
@@ -121,7 +126,7 @@ class SchedulerService {
       );
 
       // Update message status to sent
-      this.db.updateScheduledMessage(message.id, {
+      await this.db.updateScheduledMessage(message.id, {
         status: 'sent',
         sent_at: Math.floor(Date.now() / 1000)
       });
@@ -132,7 +137,7 @@ class SchedulerService {
       console.error(`Failed to send scheduled message ${message.id}:`, errorMessage);
 
       // Update message status to failed
-      this.db.updateScheduledMessage(message.id, {
+      await this.db.updateScheduledMessage(message.id, {
         status: 'failed',
         error_message: errorMessage
       });
@@ -144,7 +149,7 @@ class SchedulerService {
    */
   private async cleanupOldMessages(): Promise<void> {
     try {
-      const deletedCount = this.db.cleanupOldMessages(30); // 30 days
+      const deletedCount = await this.db.cleanupOldMessages(30); // 30 days
       if (deletedCount > 0) {
         console.log(`Cleaned up ${deletedCount} old messages`);
       }
@@ -172,8 +177,8 @@ class SchedulerService {
   /**
    * Get scheduler status
    */
-  getStatus(): { running: boolean; pendingCount: number } {
-    const pendingMessages = this.db.getPendingMessages();
+  async getStatus(): Promise<{ running: boolean; pendingCount: number }> {
+    const pendingMessages = await this.db.getPendingMessages();
     return {
       running: this.isRunning,
       pendingCount: pendingMessages.length

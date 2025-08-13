@@ -17,7 +17,12 @@ class AuthController {
   constructor() {
     this.authService = new AuthService();
     this.slackService = new SlackService();
-    this.db = new DatabaseManager();
+    this.db = DatabaseManager.getInstance();
+
+    // Initialize database
+    this.db.initialize().catch(error => {
+      console.error('Failed to initialize database:', error);
+    });
 
     // Log configuration for debugging
     console.log('AuthController initialized');
@@ -138,12 +143,12 @@ class AuthController {
       console.log('User info retrieved from OAuth:', slackUser.id);
 
       // Check if user already exists
-      let user = this.db.getUserBySlackId(slackUser.id);
+      let user = await this.db.getUserBySlackId(slackUser.id);
 
       if (user) {
         console.log('Updating existing user...');
         // Update existing user's tokens and webhook
-        this.db.updateUser(user.id, {
+        await this.db.updateUser(user.id, {
           access_token: botToken, // Store bot token for message sending
           team_id: oauthResponse.team.id,
           webhook_url: webhookUrl,
@@ -151,11 +156,11 @@ class AuthController {
         });
 
         // Refetch updated user
-        user = this.db.getUserById(user.id)!;
+        user = await this.db.getUserById(user.id);
       } else {
         console.log('Creating new user...');
         // Create new user
-        user = this.db.createUser({
+        user = await this.db.createUser({
           id: uuidv4(),
           slack_user_id: slackUser.id,
           team_id: oauthResponse.team.id,
@@ -168,6 +173,9 @@ class AuthController {
 
       // Generate JWT token
       console.log('Generating JWT token...');
+      if (!user) {
+        throw new Error('Failed to create or retrieve user');
+      }
       const jwtToken = this.authService.generateToken(user);
 
       // Redirect to frontend with token
