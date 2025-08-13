@@ -187,13 +187,13 @@ After deployment, test your application functionality:
 - Should redirect back successfully
 
 ### 5. **Message Scheduling:**
-![Scheduling Test](./img/3.png)
+![Scheduling Test](./img/5.png)
 - Test the scheduling interface
 - Verify date/time picker functionality
 - Confirm channel selection works
 
 ### 6. **Message Testing:**
-![Testing Interface](./img/4.png)
+![Testing Interface](./img/6.png)
 - Use the testing interface to validate functionality
 - Send test messages to verify Slack integration
 - Check that messages appear in your Slack channel
