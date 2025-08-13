@@ -21,6 +21,17 @@ export const NotificationsProvider: React.FC<NotificationsProviderProps> = ({ ch
   const [notifications, setNotifications] = useState<NotificationState[]>([]);
 
   const addNotification = useCallback((type: NotificationState['type'], message: string) => {
+    // Prevent duplicate error notifications
+    const isDuplicate = notifications.some(n => 
+      n.type === type && n.message === message
+    );
+    
+    // Don't show network error notifications repeatedly
+    if (type === 'error' && (message.includes('Network Error') || message.includes('Failed to load') || isDuplicate)) {
+      console.warn('Suppressed duplicate or network error notification:', message);
+      return;
+    }
+
     const notification: NotificationState = {
       id: generateId(),
       type,
@@ -29,13 +40,14 @@ export const NotificationsProvider: React.FC<NotificationsProviderProps> = ({ ch
 
     setNotifications(prev => [notification, ...prev]);
 
-    // Auto remove after 5 seconds for success notifications
-    if (type === 'success' || type === 'info') {
+    // Auto remove after 5 seconds for success notifications, 10 seconds for errors
+    const timeout = type === 'error' ? 10000 : 5000;
+    if (type === 'success' || type === 'info' || type === 'error') {
       setTimeout(() => {
         setNotifications(prev => prev.filter(n => n.id !== notification.id));
-      }, 5000);
+      }, timeout);
     }
-  }, []);
+  }, [notifications]);
 
   const removeNotification = useCallback((id: string) => {
     setNotifications(prev => prev.filter(n => n.id !== id));

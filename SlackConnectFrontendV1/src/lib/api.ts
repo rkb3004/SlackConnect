@@ -1,6 +1,14 @@
 import axios, { AxiosInstance, AxiosRequestConfig, AxiosError } from 'axios';
 import { ApiResponse } from '@/types';
 
+// Import debug logger (only in client)
+let addDebugLog: any = null;
+if (typeof window !== 'undefined') {
+  import('@/components/DebugConsole').then(module => {
+    addDebugLog = module.addDebugLog;
+  });
+}
+
 class ApiClient {
   private client: AxiosInstance;
   private token: string | null = null;
@@ -25,6 +33,15 @@ class ApiClient {
         if (this.token) {
           config.headers.Authorization = `Bearer ${this.token}`;
         }
+        
+        // Log API requests
+        if (addDebugLog) {
+          addDebugLog('api', `${config.method?.toUpperCase()} ${config.url}`, {
+            hasToken: !!this.token,
+            baseURL: config.baseURL
+          });
+        }
+        
         return config;
       },
       (error) => Promise.reject(error)
@@ -32,15 +49,43 @@ class ApiClient {
 
     // Response interceptor - handle errors
     this.client.interceptors.response.use(
-      (response) => response,
+      (response) => {
+        // Log successful responses
+        if (addDebugLog) {
+          addDebugLog('api', `✓ ${response.config.method?.toUpperCase()} ${response.config.url} - ${response.status}`, {
+            status: response.status,
+            data: response.data
+          });
+        }
+        return response;
+      },
       (error: AxiosError<ApiResponse>) => {
+        // Log errors
+        if (addDebugLog) {
+          addDebugLog('error', `✗ ${error.config?.method?.toUpperCase()} ${error.config?.url} - ${error.response?.status || 'Network Error'}`, {
+            status: error.response?.status,
+            message: error.message,
+            data: error.response?.data
+          });
+        }
+
         // Handle 401 errors (token expired)
         if (error.response?.status === 401) {
           this.clearToken();
+          if (addDebugLog) {
+            addDebugLog('auth', 'Token expired - redirecting to login');
+          }
           // Redirect to login if we're in the browser
           if (typeof window !== 'undefined') {
             window.location.href = '/';
           }
+        }
+
+        // Don't log network errors for failed requests during initialization
+        if (!error.response && error.code === 'ECONNABORTED') {
+          console.warn('Request timeout - backend may be cold starting');
+        } else if (!error.response) {
+          console.warn('Network error - backend may be unavailable');
         }
 
         // Transform error for consistent handling

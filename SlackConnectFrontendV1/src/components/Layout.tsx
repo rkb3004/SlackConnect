@@ -17,6 +17,7 @@ import Button from '@/components/ui/Button';
 import { useAuth } from '@/contexts/AuthContext';
 import { useNotifications } from '@/contexts/NotificationsContext';
 import { formatDate } from '@/lib/utils';
+import { DebugConsole } from '@/components/DebugConsole';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -263,6 +264,9 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
           </div>
         </div>
       </footer>
+      
+      {/* Debug Console - only shows in development */}
+      <DebugConsole />
     </div>
   );
 };

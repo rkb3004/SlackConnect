@@ -63,10 +63,19 @@ const MessageForm: React.FC<MessageFormProps> = ({ onMessageSent }) => {
   const isScheduled = watch('is_scheduled');
   const selectedChannelId = watch('channel_id');
 
-  // Load channels on mount
+  // Load channels on mount with authentication check
   useEffect(() => {
     const loadChannels = async () => {
+      // Only load channels if user is authenticated and has a token
+      if (!apiClient.getToken()) {
+        setIsLoadingChannels(false);
+        return;
+      }
+
       try {
+        // Add a small delay to prevent simultaneous requests
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        
         const response = await apiClient.getChannels();
         if (response.success && response.data) {
           setChannels(response.data);
@@ -75,7 +84,10 @@ const MessageForm: React.FC<MessageFormProps> = ({ onMessageSent }) => {
         }
       } catch (error: any) {
         console.error('Error loading channels:', error);
-        addNotification('error', error.message || 'Failed to load channels');
+        // Only show error notification if it's not a network/auth error
+        if (error.status !== 401 && !error.message?.includes('Network Error')) {
+          addNotification('error', error.message || 'Failed to load channels');
+        }
       } finally {
         setIsLoadingChannels(false);
       }

@@ -4,6 +4,14 @@ import React, { createContext, useContext, useReducer, useEffect, ReactNode } fr
 import { User, AuthState } from '@/types';
 import apiClient from '@/lib/api';
 
+// Import debug logger (only in client)
+let addDebugLog: any = null;
+if (typeof window !== 'undefined') {
+  import('@/components/DebugConsole').then(module => {
+    addDebugLog = module.addDebugLog;
+  });
+}
+
 // Auth actions
 type AuthAction =
   | { type: 'SET_LOADING'; payload: boolean }
@@ -85,22 +93,39 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   useEffect(() => {
     const initAuth = async () => {
       const token = apiClient.getToken();
+      if (addDebugLog) {
+        addDebugLog('auth', 'Initializing authentication', { hasToken: !!token });
+      }
+      
       if (token) {
         try {
+          dispatch({ type: 'SET_LOADING', payload: true });
           const response = await apiClient.getCurrentUser();
           if (response.success && response.data) {
+            if (addDebugLog) {
+              addDebugLog('auth', 'Successfully restored user session', { user: response.data });
+            }
             dispatch({
               type: 'LOGIN_SUCCESS',
               payload: { user: response.data, token },
             });
           } else {
+            if (addDebugLog) {
+              addDebugLog('auth', 'Failed to restore session - clearing token');
+            }
             apiClient.clearToken();
             dispatch({ type: 'LOGOUT' });
           }
         } catch (error) {
           console.error('Failed to get current user:', error);
+          if (addDebugLog) {
+            addDebugLog('error', 'Failed to restore user session', error);
+          }
+          // Don't show error notification on initialization
           apiClient.clearToken();
           dispatch({ type: 'LOGOUT' });
+        } finally {
+          dispatch({ type: 'SET_LOADING', payload: false });
         }
       } else {
         dispatch({ type: 'SET_LOADING', payload: false });

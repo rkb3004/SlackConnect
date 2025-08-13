@@ -24,12 +24,21 @@ function AuthSuccessContent() {
       }
 
       try {
+        // Add a small delay to prevent race conditions
+        await new Promise(resolve => setTimeout(resolve, 500));
         await login(token);
         addNotification('success', 'Successfully connected to Slack!');
-        router.push('/');
+        
+        // Delay navigation to allow state updates
+        setTimeout(() => {
+          router.push('/');
+        }, 1000);
       } catch (error: any) {
         console.error('Login error:', error);
-        addNotification('error', error.message || 'Failed to complete authentication');
+        // Only show error if it's not a network error
+        if (!error.message?.includes('Network Error')) {
+          addNotification('error', error.message || 'Failed to complete authentication');
+        }
         router.push('/');
       }
     };
